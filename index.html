@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Red Frame Camera</title>
+<style>
+  :root {
+    --frame-color: #c8221c;
+    --frame-shadow: #6a0f0b;
+    --frame-highlight: #ff5a52;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    width: 100%; height: 100%;
+    background: #000; color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  #stage {
+    position: fixed; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #frameBox {
+    position: relative;
+    background: #000;
+    overflow: hidden;
+  }
+  video, #shot {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    background: #111;
+  }
+  #shot { display: none; }
+
+  /* 立体赤額縁 — 4辺を border-image で太く、影と内側のハイライトで立体感 */
+  #frameBox::before {
+    content: "";
+    position: absolute; inset: 0;
+    pointer-events: none;
+    border: var(--frame-w, 32px) solid var(--frame-color);
+    /* 木目風の縦縞グラデを border-image で */
+    border-image: linear-gradient(
+      180deg,
+      var(--frame-highlight) 0%,
+      var(--frame-color) 20%,
+      var(--frame-color) 75%,
+      var(--frame-shadow) 100%
+    ) 1;
+    box-shadow:
+      inset 0 0 0 2px rgba(0,0,0,0.5),
+      inset 0 0 18px rgba(0,0,0,0.6),
+      0 0 0 1px rgba(0,0,0,0.8);
+  }
+  /* 外側の落ち影で浮かせる */
+  #frameBox::after {
+    content: "";
+    position: absolute; inset: 0;
+    pointer-events: none;
+    box-shadow:
+      0 12px 28px rgba(0,0,0,0.7),
+      0 2px 6px rgba(0,0,0,0.6);
+  }
+
+  /* UI */
+  #topBar {
+    position: fixed; top: 0; left: 0; right: 0;
+    padding: max(12px, env(safe-area-inset-top)) 16px 8px;
+    display: flex; justify-content: center; gap: 8px;
+    z-index: 10;
+  }
+  .ratioBtn {
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.25);
+    padding: 8px 14px;
+    border-radius: 999px;
+    font-size: 14px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .ratioBtn.active {
+    background: var(--frame-color);
+    border-color: var(--frame-highlight);
+  }
+  #bottomBar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    padding: 12px 24px max(20px, env(safe-area-inset-bottom));
+    display: flex; align-items: center; justify-content: space-between;
+    z-index: 10;
+  }
+  #thickness {
+    -webkit-appearance: none; appearance: none;
+    width: 130px; height: 4px; background: rgba(255,255,255,0.4); border-radius: 2px;
+  }
+  #thickness::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--frame-color); border: 2px solid #fff;
+  }
+  #shutter {
+    width: 74px; height: 74px; border-radius: 50%;
+    background: #fff; border: 5px solid rgba(255,255,255,0.5);
+    box-shadow: 0 0 0 3px var(--frame-color);
+  }
+  #shutter:active { transform: scale(0.92); }
+  .iconBtn {
+    width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(0,0,0,0.55); color: #fff;
+    border: 1px solid rgba(255,255,255,0.25);
+    font-size: 20px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #preview {
+    position: fixed; inset: 0; background: #000;
+    display: none; flex-direction: column;
+    z-index: 20;
+  }
+  #preview img { flex: 1; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  #previewBar {
+    display: flex; justify-content: space-around; align-items: center;
+    padding: 14px 16px max(20px, env(safe-area-inset-bottom));
+    background: #000;
+  }
+  .pvBtn {
+    padding: 10px 20px; border-radius: 999px;
+    background: rgba(255,255,255,0.12); color: #fff;
+    border: 1px solid rgba(255,255,255,0.25); font-size: 15px;
+  }
+  .pvBtn.primary { background: var(--frame-color); border-color: var(--frame-highlight); }
+  #err {
+    position: fixed; top: 50%; left: 16px; right: 16px; transform: translateY(-50%);
+    background: rgba(0,0,0,0.85); padding: 18px; border-radius: 12px;
+    text-align: center; display: none; z-index: 30;
+    border: 1px solid rgba(255,255,255,0.2);
+    font-size: 14px; line-height: 1.5;
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="frameBox">
+    <video id="video" autoplay playsinline muted></video>
+    <img id="shot" alt="">
+  </div>
+</div>
+
+<div id="topBar">
+  <button class="ratioBtn" data-ratio="1">1:1</button>
+  <button class="ratioBtn active" data-ratio="1.3333">4:3</button>
+  <button class="ratioBtn" data-ratio="1.7778">16:9</button>
+  <button class="ratioBtn" data-ratio="0.75">3:4</button>
+</div>
+
+<div id="bottomBar">
+  <input id="thickness" type="range" min="16" max="72" value="36">
+  <button id="shutter" aria-label="撮影"></button>
+  <button id="flip" class="iconBtn" aria-label="カメラ切替">⟲</button>
+</div>
+
+<div id="preview">
+  <img id="previewImg" alt="">
+  <div id="previewBar">
+    <button class="pvBtn" id="retake">撮り直し</button>
+    <a class="pvBtn primary" id="save" download="redframe.jpg">保存</a>
+    <button class="pvBtn" id="share">共有</button>
+  </div>
+</div>
+
+<div id="err"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const video = $('#video');
+const frameBox = $('#frameBox');
+const errBox = $('#err');
+
+let currentRatio = 4/3;   // width / height (横長基準)
+let isLandscape = true;   // false=縦長
+let facingMode = 'environment';
+let stream = null;
+
+function showErr(msg) {
+  errBox.innerHTML = msg;
+  errBox.style.display = 'block';
+}
+
+// 画面に収まる最大の枠サイズを計算してframeBoxを配置
+function layoutFrame() {
+  const margin = 24;
+  const topUI = 64, bottomUI = 140;
+  const availW = window.innerWidth - margin * 2;
+  const availH = window.innerHeight - topUI - bottomUI;
+
+  let w, h;
+  if (isLandscape) {
+    // ratio = w/h, w>=h
+    w = availW;
+    h = w / currentRatio;
+    if (h > availH) { h = availH; w = h * currentRatio; }
+  } else {
+    // 縦長: ratio < 1 を想定。h>w
+    w = availW;
+    h = w / currentRatio;
+    if (h > availH) { h = availH; w = h * currentRatio; }
+  }
+  frameBox.style.width = w + 'px';
+  frameBox.style.height = h + 'px';
+}
+
+async function startCamera() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: facingMode }, width: { ideal: 1920 }, height: { ideal: 1920 } },
+      audio: false
+    });
+    video.srcObject = stream;
+    errBox.style.display = 'none';
+  } catch (e) {
+    showErr('カメラを起動できませんでした。<br>Safariの設定でカメラを許可してください。<br><br><small>' + e.message + '</small>');
+  }
+}
+
+// アスペクト比ボタン
+document.querySelectorAll('.ratioBtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.ratioBtn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const r = parseFloat(btn.dataset.ratio);
+    currentRatio = r;
+    isLandscape = r >= 1;
+    layoutFrame();
+  });
+});
+
+// 枠の太さ
+$('#thickness').addEventListener('input', e => {
+  document.documentElement.style.setProperty('--frame-w', e.target.value + 'px');
+});
+document.documentElement.style.setProperty('--frame-w', '36px');
+
+// カメラ切替
+$('#flip').addEventListener('click', () => {
+  facingMode = (facingMode === 'environment') ? 'user' : 'environment';
+  startCamera();
+});
+
+// 撮影 — videoを枠サイズでcrop+赤枠焼き込み
+$('#shutter').addEventListener('click', () => {
+  if (!video.videoWidth) return;
+  const boxW = frameBox.clientWidth;
+  const boxH = frameBox.clientHeight;
+  // 出力解像度: 長辺を1600に
+  const scale = 1600 / Math.max(boxW, boxH);
+  const outW = Math.round(boxW * scale);
+  const outH = Math.round(boxH * scale);
+  const frameW = Math.round(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--frame-w')) * scale);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = outW; canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+
+  // object-fit: cover と同じ計算でvideoを描画
+  const vW = video.videoWidth, vH = video.videoHeight;
+  const targetRatio = outW / outH;
+  const videoRatio = vW / vH;
+  let sx, sy, sw, sh;
+  if (videoRatio > targetRatio) {
+    sh = vH; sw = vH * targetRatio;
+    sx = (vW - sw) / 2; sy = 0;
+  } else {
+    sw = vW; sh = vW / targetRatio;
+    sx = 0; sy = (vH - sh) / 2;
+  }
+  // フロントカメラなら左右反転
+  if (facingMode === 'user') {
+    ctx.save();
+    ctx.translate(outW, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
+    ctx.restore();
+  } else {
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
+  }
+
+  // 赤枠を焼き込み(立体感: グラデ+影)
+  drawFrame(ctx, outW, outH, frameW);
+
+  // プレビュー
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+  $('#previewImg').src = dataUrl;
+  $('#save').href = dataUrl;
+  $('#save').download = 'redframe-' + Date.now() + '.jpg';
+  $('#preview').style.display = 'flex';
+  window._lastBlob = null;
+  canvas.toBlob(b => { window._lastBlob = b; }, 'image/jpeg', 0.92);
+});
+
+function drawFrame(ctx, W, H, T) {
+  // 縦方向グラデの赤枠
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#ff5a52');
+  grad.addColorStop(0.18, '#c8221c');
+  grad.addColorStop(0.75, '#c8221c');
+  grad.addColorStop(1, '#6a0f0b');
+
+  ctx.save();
+  ctx.fillStyle = grad;
+  // 4辺
+  ctx.fillRect(0, 0, W, T);             // top
+  ctx.fillRect(0, H - T, W, T);         // bottom
+  ctx.fillRect(0, 0, T, H);             // left
+  ctx.fillRect(W - T, 0, T, H);         // right
+  ctx.restore();
+
+  // 内側ハイライト/影で立体感
+  ctx.save();
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+  ctx.lineWidth = Math.max(2, T * 0.06);
+  ctx.strokeRect(T, T, W - 2*T, H - 2*T);
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = Math.max(1, T * 0.04);
+  ctx.strokeRect(T - ctx.lineWidth, T - ctx.lineWidth, W - 2*(T - ctx.lineWidth), H - 2*(T - ctx.lineWidth));
+
+  // 外周の暗いふち
+  ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, W - 2, H - 2);
+  ctx.restore();
+}
+
+// プレビュー操作
+$('#retake').addEventListener('click', () => {
+  $('#preview').style.display = 'none';
+});
+$('#share').addEventListener('click', async () => {
+  if (!window._lastBlob || !navigator.share) {
+    alert('この端末では共有が使えません。「保存」を長押しして画像を保存してください。');
+    return;
+  }
+  try {
+    const file = new File([window._lastBlob], 'redframe.jpg', { type: 'image/jpeg' });
+    await navigator.share({ files: [file] });
+  } catch(e) {}
+});
+
+window.addEventListener('resize', layoutFrame);
+window.addEventListener('orientationchange', () => setTimeout(layoutFrame, 200));
+layoutFrame();
+startCamera();
+</script>
+</body>
+</html>
