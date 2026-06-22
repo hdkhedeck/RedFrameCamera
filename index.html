@@ -7,161 +7,194 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Red Frame Camera</title>
 <style>
-  :root {
-    --frame-color: #c8221c;
-    --frame-shadow: #6a0f0b;
-    --frame-highlight: #ff5a52;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-  html, body {
-    width: 100%; height: 100%;
-    background: #000; color: #fff;
-    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
-    overflow: hidden;
-    overscroll-behavior: none;
-  }
-  #stage {
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+  html, body { width:100%; height:100%; background:#000; color:#fff; overflow:hidden; overscroll-behavior:none; font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif; }
+
+  #video {
     position: fixed; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-  }
-  #frameBox {
-    position: relative;
-    background: #000;
-    overflow: hidden;
-  }
-  video, #shot {
-    position: absolute; inset: 0;
     width: 100%; height: 100%;
     object-fit: cover;
     background: #111;
   }
-  #shot { display: none; }
 
-  /* 立体赤額縁 — 4辺を border-image で太く、影と内側のハイライトで立体感 */
-  #frameBox::before {
-    content: "";
-    position: absolute; inset: 0;
+  /* 画面いっぱいの透明SVG。中に赤い額縁(4本の棒)だけを置く */
+  #overlay {
+    position: fixed; inset: 0;
+    width: 100%; height: 100%;
     pointer-events: none;
-    border: var(--frame-w, 32px) solid var(--frame-color);
-    /* 木目風の縦縞グラデを border-image で */
-    border-image: linear-gradient(
-      180deg,
-      var(--frame-highlight) 0%,
-      var(--frame-color) 20%,
-      var(--frame-color) 75%,
-      var(--frame-shadow) 100%
-    ) 1;
-    box-shadow:
-      inset 0 0 0 2px rgba(0,0,0,0.5),
-      inset 0 0 18px rgba(0,0,0,0.6),
-      0 0 0 1px rgba(0,0,0,0.8);
-  }
-  /* 外側の落ち影で浮かせる */
-  #frameBox::after {
-    content: "";
-    position: absolute; inset: 0;
-    pointer-events: none;
-    box-shadow:
-      0 12px 28px rgba(0,0,0,0.7),
-      0 2px 6px rgba(0,0,0,0.6);
   }
 
   /* UI */
   #topBar {
     position: fixed; top: 0; left: 0; right: 0;
-    padding: max(12px, env(safe-area-inset-top)) 16px 8px;
-    display: flex; justify-content: center; gap: 8px;
+    padding: max(12px, env(safe-area-inset-top)) 12px 8px;
+    display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
     z-index: 10;
   }
-  .ratioBtn {
+  .chip {
     background: rgba(0,0,0,0.55);
     color: #fff;
     border: 1px solid rgba(255,255,255,0.25);
-    padding: 8px 14px;
+    padding: 7px 12px;
     border-radius: 999px;
-    font-size: 14px;
+    font-size: 13px;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }
-  .ratioBtn.active {
-    background: var(--frame-color);
-    border-color: var(--frame-highlight);
-  }
+  .chip.active { background: #c8221c; border-color: #ff5a52; }
+
   #bottomBar {
     position: fixed; bottom: 0; left: 0; right: 0;
-    padding: 12px 24px max(20px, env(safe-area-inset-bottom));
-    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 18px max(18px, env(safe-area-inset-bottom));
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
     z-index: 10;
   }
-  #thickness {
-    -webkit-appearance: none; appearance: none;
-    width: 130px; height: 4px; background: rgba(255,255,255,0.4); border-radius: 2px;
-  }
-  #thickness::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 22px; height: 22px; border-radius: 50%;
-    background: var(--frame-color); border: 2px solid #fff;
-  }
   #shutter {
-    width: 74px; height: 74px; border-radius: 50%;
+    width: 72px; height: 72px; border-radius: 50%;
     background: #fff; border: 5px solid rgba(255,255,255,0.5);
-    box-shadow: 0 0 0 3px var(--frame-color);
+    box-shadow: 0 0 0 3px #c8221c;
   }
   #shutter:active { transform: scale(0.92); }
   .iconBtn {
-    width: 48px; height: 48px; border-radius: 50%;
+    width: 46px; height: 46px; border-radius: 50%;
     background: rgba(0,0,0,0.55); color: #fff;
     border: 1px solid rgba(255,255,255,0.25);
-    font-size: 20px;
+    font-size: 18px;
     display: flex; align-items: center; justify-content: center;
   }
+  .sliderWrap {
+    display: flex; flex-direction: column; gap: 6px; align-items: center;
+    background: rgba(0,0,0,0.45);
+    padding: 6px 10px; border-radius: 14px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .sliderWrap label { font-size: 10px; opacity: 0.8; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 90px; height: 3px; background: rgba(255,255,255,0.4); border-radius: 2px;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px; border-radius: 50%;
+    background: #c8221c; border: 2px solid #fff;
+  }
+  #controlsRow {
+    position: fixed; bottom: 110px; left: 0; right: 0;
+    display: flex; justify-content: center; gap: 8px; padding: 0 12px;
+    z-index: 10;
+  }
+
+  /* ドラッグ用ハンドル(額の四隅と中央) */
+  .handle {
+    position: fixed;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    border: 2px solid #fff;
+    backdrop-filter: blur(4px);
+    z-index: 8;
+    touch-action: none;
+  }
+  .handle.center {
+    width: 44px; height: 44px;
+    background: rgba(200,34,28,0.4);
+    border-color: #ff5a52;
+  }
+  .handle.hidden { display: none; }
+
   #preview {
     position: fixed; inset: 0; background: #000;
     display: none; flex-direction: column;
     z-index: 20;
   }
-  #preview img { flex: 1; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  #preview img { flex: 1; width:100%; height:100%; object-fit: contain; background:#000; }
   #previewBar {
     display: flex; justify-content: space-around; align-items: center;
     padding: 14px 16px max(20px, env(safe-area-inset-bottom));
     background: #000;
   }
   .pvBtn {
-    padding: 10px 20px; border-radius: 999px;
+    padding: 10px 18px; border-radius: 999px;
     background: rgba(255,255,255,0.12); color: #fff;
-    border: 1px solid rgba(255,255,255,0.25); font-size: 15px;
+    border: 1px solid rgba(255,255,255,0.25); font-size: 14px;
+    text-decoration: none;
   }
-  .pvBtn.primary { background: var(--frame-color); border-color: var(--frame-highlight); }
+  .pvBtn.primary { background: #c8221c; border-color: #ff5a52; }
+
   #err {
     position: fixed; top: 50%; left: 16px; right: 16px; transform: translateY(-50%);
-    background: rgba(0,0,0,0.85); padding: 18px; border-radius: 12px;
+    background: rgba(0,0,0,0.85); padding: 16px; border-radius: 12px;
     text-align: center; display: none; z-index: 30;
     border: 1px solid rgba(255,255,255,0.2);
-    font-size: 14px; line-height: 1.5;
+    font-size: 13px; line-height: 1.5;
+  }
+  #hint {
+    position: fixed; top: 60px; left: 0; right: 0; text-align: center;
+    font-size: 12px; color: rgba(255,255,255,0.7);
+    pointer-events: none; z-index: 5;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
   }
 </style>
 </head>
 <body>
 
-<div id="stage">
-  <div id="frameBox">
-    <video id="video" autoplay playsinline muted></video>
-    <img id="shot" alt="">
+<video id="video" autoplay playsinline muted></video>
+
+<svg id="overlay" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">
+  <defs>
+    <linearGradient id="redGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff5a52"/>
+      <stop offset="18%" stop-color="#c8221c"/>
+      <stop offset="78%" stop-color="#a01914"/>
+      <stop offset="100%" stop-color="#5a0d09"/>
+    </linearGradient>
+    <filter id="frameShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+  <!-- 額縁は4つの矩形で作る(中身は穴) -->
+  <g id="frameGroup" filter="url(#frameShadow)">
+    <rect id="topBar_r"    fill="url(#redGrad)"/>
+    <rect id="bottomBar_r" fill="url(#redGrad)"/>
+    <rect id="leftBar_r"   fill="url(#redGrad)"/>
+    <rect id="rightBar_r"  fill="url(#redGrad)"/>
+    <!-- 内側の暗い縁 -->
+    <rect id="innerEdge" fill="none" stroke="rgba(0,0,0,0.55)" stroke-width="2"/>
+    <!-- 外側の暗い縁 -->
+    <rect id="outerEdge" fill="none" stroke="rgba(0,0,0,0.7)" stroke-width="2"/>
+  </g>
+</svg>
+
+<div id="hint">中央=移動 / 四隅=リサイズ</div>
+
+<div id="topBar">
+  <button class="chip" data-ratio="1">1:1</button>
+  <button class="chip active" data-ratio="1.3333">4:3</button>
+  <button class="chip" data-ratio="1.7778">16:9</button>
+  <button class="chip" data-ratio="0.75">3:4</button>
+  <button class="chip" id="toggleHandles">編集</button>
+</div>
+
+<div id="controlsRow">
+  <div class="sliderWrap">
+    <label>枠の太さ</label>
+    <input id="thickness" type="range" min="10" max="80" value="34">
   </div>
 </div>
 
-<div id="topBar">
-  <button class="ratioBtn" data-ratio="1">1:1</button>
-  <button class="ratioBtn active" data-ratio="1.3333">4:3</button>
-  <button class="ratioBtn" data-ratio="1.7778">16:9</button>
-  <button class="ratioBtn" data-ratio="0.75">3:4</button>
+<div id="bottomBar">
+  <button id="flip" class="iconBtn" aria-label="カメラ切替">⟲</button>
+  <button id="shutter" aria-label="撮影"></button>
+  <button id="reset" class="iconBtn" aria-label="位置リセット">⟳</button>
 </div>
 
-<div id="bottomBar">
-  <input id="thickness" type="range" min="16" max="72" value="36">
-  <button id="shutter" aria-label="撮影"></button>
-  <button id="flip" class="iconBtn" aria-label="カメラ切替">⟲</button>
-</div>
+<!-- ドラッグハンドル -->
+<div class="handle center" id="hCenter"></div>
+<div class="handle" id="hTL"></div>
+<div class="handle" id="hTR"></div>
+<div class="handle" id="hBL"></div>
+<div class="handle" id="hBR"></div>
 
 <div id="preview">
   <img id="previewImg" alt="">
@@ -177,41 +210,151 @@
 <script>
 const $ = s => document.querySelector(s);
 const video = $('#video');
-const frameBox = $('#frameBox');
+const overlay = $('#overlay');
 const errBox = $('#err');
 
-let currentRatio = 4/3;   // width / height (横長基準)
-let isLandscape = true;   // false=縦長
+// 額縁の状態(画面ピクセル座標、中央基準のサイズ)
+let frame = {
+  cx: 0, cy: 0,   // 中心
+  w: 0, h: 0,     // 額の外形サイズ
+  thickness: 34,
+};
+let ratio = 4/3;        // w/h
 let facingMode = 'environment';
 let stream = null;
+let handlesVisible = true;
 
-function showErr(msg) {
-  errBox.innerHTML = msg;
-  errBox.style.display = 'block';
+function showErr(msg) { errBox.innerHTML = msg; errBox.style.display = 'block'; }
+
+function fitInitialFrame() {
+  const W = window.innerWidth, H = window.innerHeight;
+  // 画面の70%に収まる最大サイズ
+  const maxW = W * 0.78, maxH = H * 0.6;
+  let w = maxW, h = w / ratio;
+  if (h > maxH) { h = maxH; w = h * ratio; }
+  frame.w = w; frame.h = h;
+  frame.cx = W / 2; frame.cy = H / 2;
 }
 
-// 画面に収まる最大の枠サイズを計算してframeBoxを配置
-function layoutFrame() {
-  const margin = 24;
-  const topUI = 64, bottomUI = 140;
-  const availW = window.innerWidth - margin * 2;
-  const availH = window.innerHeight - topUI - bottomUI;
+function renderFrame() {
+  const T = frame.thickness;
+  const x = frame.cx - frame.w/2;
+  const y = frame.cy - frame.h/2;
+  const W = frame.w, H = frame.h;
 
-  let w, h;
-  if (isLandscape) {
-    // ratio = w/h, w>=h
-    w = availW;
-    h = w / currentRatio;
-    if (h > availH) { h = availH; w = h * currentRatio; }
-  } else {
-    // 縦長: ratio < 1 を想定。h>w
-    w = availW;
-    h = w / currentRatio;
-    if (h > availH) { h = availH; w = h * currentRatio; }
-  }
-  frameBox.style.width = w + 'px';
-  frameBox.style.height = h + 'px';
+  // 4本の棒
+  const top    = $('#topBar_r');
+  const bot    = $('#bottomBar_r');
+  const left   = $('#leftBar_r');
+  const right  = $('#rightBar_r');
+
+  top.setAttribute('x', x);    top.setAttribute('y', y);     top.setAttribute('width', W); top.setAttribute('height', T);
+  bot.setAttribute('x', x);    bot.setAttribute('y', y+H-T); bot.setAttribute('width', W); bot.setAttribute('height', T);
+  left.setAttribute('x', x);   left.setAttribute('y', y);    left.setAttribute('width', T); left.setAttribute('height', H);
+  right.setAttribute('x', x+W-T); right.setAttribute('y', y); right.setAttribute('width', T); right.setAttribute('height', H);
+
+  // 内側(穴)のふち
+  const inner = $('#innerEdge');
+  inner.setAttribute('x', x+T); inner.setAttribute('y', y+T);
+  inner.setAttribute('width', W-2*T); inner.setAttribute('height', H-2*T);
+
+  // 外側のふち
+  const outer = $('#outerEdge');
+  outer.setAttribute('x', x); outer.setAttribute('y', y);
+  outer.setAttribute('width', W); outer.setAttribute('height', H);
+
+  // ハンドル配置
+  positionHandle('hCenter', frame.cx, frame.cy);
+  positionHandle('hTL', x, y);
+  positionHandle('hTR', x+W, y);
+  positionHandle('hBL', x, y+H);
+  positionHandle('hBR', x+W, y+H);
 }
+
+function positionHandle(id, x, y) {
+  const el = document.getElementById(id);
+  const s = el.offsetWidth || 30;
+  el.style.left = (x - s/2) + 'px';
+  el.style.top  = (y - s/2) + 'px';
+}
+
+// ドラッグ処理
+function makeDraggable(el, onMove) {
+  let active = false, startX, startY, origin;
+  const down = (e) => {
+    if (!handlesVisible) return;
+    active = true;
+    const p = pt(e);
+    startX = p.x; startY = p.y;
+    origin = { ...frame };
+    e.preventDefault();
+  };
+  const move = (e) => {
+    if (!active) return;
+    const p = pt(e);
+    onMove(p.x - startX, p.y - startY, origin);
+    renderFrame();
+    e.preventDefault();
+  };
+  const up = () => { active = false; };
+  el.addEventListener('pointerdown', down);
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+  window.addEventListener('pointercancel', up);
+}
+function pt(e) { return { x: e.clientX, y: e.clientY }; }
+
+// 中央=移動
+makeDraggable($('#hCenter'), (dx, dy, o) => {
+  frame.cx = o.cx + dx; frame.cy = o.cy + dy;
+});
+// 四隅=リサイズ(アスペクト比維持)
+function cornerResize(signX, signY) {
+  return (dx, dy, o) => {
+    // 対角線方向の変化量から相似拡縮
+    const newW = Math.max(60, o.w + signX * dx * 2);
+    const newH = newW / ratio;
+    frame.w = newW; frame.h = newH;
+  };
+}
+makeDraggable($('#hTL'), cornerResize(-1, -1));
+makeDraggable($('#hTR'), cornerResize( 1, -1));
+makeDraggable($('#hBL'), cornerResize(-1,  1));
+makeDraggable($('#hBR'), cornerResize( 1,  1));
+
+// アスペクト比ボタン
+document.querySelectorAll('.chip[data-ratio]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.chip[data-ratio]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    ratio = parseFloat(btn.dataset.ratio);
+    // 現在の中央を保ちつつアスペクト比だけ変える
+    frame.h = frame.w / ratio;
+    renderFrame();
+  });
+});
+
+// 太さ
+$('#thickness').addEventListener('input', e => {
+  frame.thickness = parseInt(e.target.value, 10);
+  renderFrame();
+});
+
+// 編集モード切替
+$('#toggleHandles').addEventListener('click', () => {
+  handlesVisible = !handlesVisible;
+  document.querySelectorAll('.handle').forEach(h => h.classList.toggle('hidden', !handlesVisible));
+  $('#hint').style.display = handlesVisible ? 'block' : 'none';
+});
+
+// 位置リセット
+$('#reset').addEventListener('click', () => { fitInitialFrame(); renderFrame(); });
+
+// カメラ切替
+$('#flip').addEventListener('click', () => {
+  facingMode = (facingMode === 'environment') ? 'user' : 'environment';
+  startCamera();
+});
 
 async function startCamera() {
   if (stream) stream.getTracks().forEach(t => t.stop());
@@ -221,52 +364,25 @@ async function startCamera() {
       audio: false
     });
     video.srcObject = stream;
+    video.style.transform = (facingMode === 'user') ? 'scaleX(-1)' : 'none';
     errBox.style.display = 'none';
   } catch (e) {
     showErr('カメラを起動できませんでした。<br>Safariの設定でカメラを許可してください。<br><br><small>' + e.message + '</small>');
   }
 }
 
-// アスペクト比ボタン
-document.querySelectorAll('.ratioBtn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.ratioBtn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    const r = parseFloat(btn.dataset.ratio);
-    currentRatio = r;
-    isLandscape = r >= 1;
-    layoutFrame();
-  });
-});
-
-// 枠の太さ
-$('#thickness').addEventListener('input', e => {
-  document.documentElement.style.setProperty('--frame-w', e.target.value + 'px');
-});
-document.documentElement.style.setProperty('--frame-w', '36px');
-
-// カメラ切替
-$('#flip').addEventListener('click', () => {
-  facingMode = (facingMode === 'environment') ? 'user' : 'environment';
-  startCamera();
-});
-
-// 撮影 — videoを枠サイズでcrop+赤枠焼き込み
+// 撮影: 画面サイズの canvas に video(cover) + 額縁 を描画
 $('#shutter').addEventListener('click', () => {
   if (!video.videoWidth) return;
-  const boxW = frameBox.clientWidth;
-  const boxH = frameBox.clientHeight;
-  // 出力解像度: 長辺を1600に
-  const scale = 1600 / Math.max(boxW, boxH);
-  const outW = Math.round(boxW * scale);
-  const outH = Math.round(boxH * scale);
-  const frameW = Math.round(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--frame-w')) * scale);
+  const W = window.innerWidth, H = window.innerHeight;
+  const scale = Math.min(2, 1600 / Math.max(W, H));  // 出力解像度
+  const outW = Math.round(W * scale), outH = Math.round(H * scale);
 
   const canvas = document.createElement('canvas');
   canvas.width = outW; canvas.height = outH;
   const ctx = canvas.getContext('2d');
 
-  // object-fit: cover と同じ計算でvideoを描画
+  // videoをcoverで描画
   const vW = video.videoWidth, vH = video.videoHeight;
   const targetRatio = outW / outH;
   const videoRatio = vW / vH;
@@ -278,71 +394,62 @@ $('#shutter').addEventListener('click', () => {
     sw = vW; sh = vW / targetRatio;
     sx = 0; sy = (vH - sh) / 2;
   }
-  // フロントカメラなら左右反転
   if (facingMode === 'user') {
-    ctx.save();
-    ctx.translate(outW, 0);
-    ctx.scale(-1, 1);
+    ctx.save(); ctx.translate(outW, 0); ctx.scale(-1, 1);
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
     ctx.restore();
   } else {
     ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outW, outH);
   }
 
-  // 赤枠を焼き込み(立体感: グラデ+影)
-  drawFrame(ctx, outW, outH, frameW);
+  // 額縁を画面座標→canvas座標で焼き込み
+  const T = frame.thickness * scale;
+  const fw = frame.w * scale, fh = frame.h * scale;
+  const fx = (frame.cx - frame.w/2) * scale;
+  const fy = (frame.cy - frame.h/2) * scale;
 
-  // プレビュー
+  // 影
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,0.55)';
+  ctx.shadowBlur = 12 * scale;
+  ctx.shadowOffsetY = 6 * scale;
+
+  // グラデ赤
+  const grad = ctx.createLinearGradient(0, fy, 0, fy + fh);
+  grad.addColorStop(0, '#ff5a52');
+  grad.addColorStop(0.18, '#c8221c');
+  grad.addColorStop(0.78, '#a01914');
+  grad.addColorStop(1, '#5a0d09');
+  ctx.fillStyle = grad;
+
+  // 4本の棒
+  ctx.fillRect(fx, fy, fw, T);             // top
+  ctx.fillRect(fx, fy + fh - T, fw, T);    // bottom
+  ctx.fillRect(fx, fy, T, fh);             // left
+  ctx.fillRect(fx + fw - T, fy, T, fh);    // right
+  ctx.restore();
+
+  // 内側ふち(穴の縁)
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+  ctx.lineWidth = Math.max(1, 2 * scale);
+  ctx.strokeRect(fx + T, fy + T, fw - 2*T, fh - 2*T);
+  // 外側ふち
+  ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+  ctx.strokeRect(fx, fy, fw, fh);
+
   const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
   $('#previewImg').src = dataUrl;
   $('#save').href = dataUrl;
   $('#save').download = 'redframe-' + Date.now() + '.jpg';
   $('#preview').style.display = 'flex';
-  window._lastBlob = null;
   canvas.toBlob(b => { window._lastBlob = b; }, 'image/jpeg', 0.92);
 });
 
-function drawFrame(ctx, W, H, T) {
-  // 縦方向グラデの赤枠
-  const grad = ctx.createLinearGradient(0, 0, 0, H);
-  grad.addColorStop(0, '#ff5a52');
-  grad.addColorStop(0.18, '#c8221c');
-  grad.addColorStop(0.75, '#c8221c');
-  grad.addColorStop(1, '#6a0f0b');
-
-  ctx.save();
-  ctx.fillStyle = grad;
-  // 4辺
-  ctx.fillRect(0, 0, W, T);             // top
-  ctx.fillRect(0, H - T, W, T);         // bottom
-  ctx.fillRect(0, 0, T, H);             // left
-  ctx.fillRect(W - T, 0, T, H);         // right
-  ctx.restore();
-
-  // 内側ハイライト/影で立体感
-  ctx.save();
-  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-  ctx.lineWidth = Math.max(2, T * 0.06);
-  ctx.strokeRect(T, T, W - 2*T, H - 2*T);
-
-  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
-  ctx.lineWidth = Math.max(1, T * 0.04);
-  ctx.strokeRect(T - ctx.lineWidth, T - ctx.lineWidth, W - 2*(T - ctx.lineWidth), H - 2*(T - ctx.lineWidth));
-
-  // 外周の暗いふち
-  ctx.strokeStyle = 'rgba(0,0,0,0.7)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(1, 1, W - 2, H - 2);
-  ctx.restore();
-}
-
 // プレビュー操作
-$('#retake').addEventListener('click', () => {
-  $('#preview').style.display = 'none';
-});
+$('#retake').addEventListener('click', () => { $('#preview').style.display = 'none'; });
 $('#share').addEventListener('click', async () => {
   if (!window._lastBlob || !navigator.share) {
-    alert('この端末では共有が使えません。「保存」を長押しして画像を保存してください。');
+    alert('この端末では共有が使えません。「保存」をタップ(または長押し)で保存してください。');
     return;
   }
   try {
@@ -351,9 +458,12 @@ $('#share').addEventListener('click', async () => {
   } catch(e) {}
 });
 
-window.addEventListener('resize', layoutFrame);
-window.addEventListener('orientationchange', () => setTimeout(layoutFrame, 200));
-layoutFrame();
+window.addEventListener('resize', () => { fitInitialFrame(); renderFrame(); });
+window.addEventListener('orientationchange', () => setTimeout(() => { fitInitialFrame(); renderFrame(); }, 200));
+
+// 起動
+fitInitialFrame();
+renderFrame();
 startCamera();
 </script>
 </body>
